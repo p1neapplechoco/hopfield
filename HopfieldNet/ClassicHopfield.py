@@ -89,7 +89,7 @@ class ClassicHopfield:
 
             if mode == 'sync':
                 x = self.W @ state
-                
+         
                 state = self.sign(x)
                 state_history.append(state.copy())
 
