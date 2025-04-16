@@ -1,134 +1,8 @@
 import numpy as np
-from typing import List, Tuple, Optional
-from functools import lru_cache
-from scipy.special import logsumexp, softmax
-
-class DiscreteHopfield:
-    def __init__(self, beta: float=1.0) -> None:
-        self.patterns = None
-        self.N = 0
-        self.d = 0
-        self.beta = beta                       
- 
-    def store_patterns(self, patterns: np.ndarray) -> None:
-        if patterns.ndim != 2:
-            raise ValueError("Input 'patterns' must be a 2D NumPy array (N, d).")
-        if not np.all(np.isin(patterns, [-1, 1])):
-            raise ValueError("Pattern values must be only -1 or 1.")
-
-        self.N, self.d = patterns.shape
-        self.patterns = patterns.astype(np.int8)
-
-    @staticmethod
-    def sign(value: float) -> int:
-        if value > 0:
-            return 1
-        elif value < 0:
-            return -1
-        else:
-            return 1
-
-    def energy(self, state: np.ndarray) -> float:
-        if self.patterns is None:
-            raise RuntimeError("No patterns stored yet. Call store_patterns() first.")
-        if state.shape != (self.d,):
-             raise ValueError(f"State dimension {state.shape} doesn't match pattern dimension {self.d}.")
-
-        dot_products = self.patterns @ state.astype(np.float64) # can be proved
-
-        log_sum_exp_val = logsumexp(dot_products)
-        energy = -np.exp(log_sum_exp_val)
-
-        return energy
-
-    def update_component(self, current_state: np.ndarray, l: int) -> int:
-        """
-        Updates component l using logsumexp comparison on beta-scaled dot products.
-        """
-        state_float = current_state.astype(np.float64)
-        patterns_float = self.patterns.astype(np.float64)
-
-        dot_products_current = patterns_float @ state_float
-        x_col_l = patterns_float[:, l]
-
-        term_common = dot_products_current - x_col_l * state_float[l]
-        dot_products_l_plus = term_common + x_col_l
-        dot_products_l_minus = term_common - x_col_l
-
-        # *** Apply beta scaling HERE before logsumexp ***
-        scaled_dots_plus = self.beta * dot_products_l_plus
-        scaled_dots_minus = self.beta * dot_products_l_minus
-
-        # Calculate logsumexp on the beta-scaled values
-        log_sum_exp_plus = logsumexp(scaled_dots_plus)
-        log_sum_exp_minus = logsumexp(scaled_dots_minus)
-
-        # Comparison logic remains the same
-        tolerance = 1e-9
-        diff = log_sum_exp_plus - log_sum_exp_minus
-
-        if diff > tolerance:
-            new_value_l = 1
-        elif diff < -tolerance:
-            new_value_l = -1
-        else:
-            new_value_l = int(current_state[l]) # Keep original if no significant difference
-
-        return new_value_l
-
-
-    def retrieve(self, initial_state: np.ndarray,
-                 max_iter: int = 1,
-                 update_order: str = 'random',
-                 max_unchanged: int = 10) -> np.ndarray:
-        
-        if self.patterns is None:
-            raise RuntimeError("No patterns stored yet. Call store_patterns() first.")
-        if initial_state.ndim != 1 or initial_state.shape[0] != self.d:
-             raise ValueError(f"Initial state must be 1D with dimension {self.d}.")
-        if not np.all(np.isin(initial_state, [-1, 1])):
-             raise ValueError("Warning: Initial state contains values other than {-1, 1}.")
-
-        state = initial_state.copy()
-
-        state_history = [state.copy()]
-        energy_history = [self.energy(state)]
-
-        consecutive_unchanged = 0
-        converged = False
-
-        for it in range(max_iter):
-            state_changed_this_sweep = False
-            order = np.random.permutation(self.d) if update_order == 'random' else np.arange(self.d)
-
-            for l in order:
-                new_val_l = self.update_component(state, l)
-
-                if new_val_l != state[l]:
-                    state[l] = new_val_l
-                    state_changed_this_sweep = True
-
-            state_history.append(state.copy())
-            current_energy = self.energy(state)
-            energy_history.append(current_energy)
-
-            if not state_changed_this_sweep:
-                consecutive_unchanged += 1
-            else:
-                consecutive_unchanged = 0
-
-            if consecutive_unchanged >= max_unchanged:
-                converged = True
-            
-            if converged:
-                break
-            
-            print(f'Iteration {it + 1}: State={state}')
-
-        return state
-
-def lse(beta: float, z: np.array) -> float:
-    return (1 / beta) * np.log(np.sum(np.exp(beta * z)))
+from typing import Tuple, List, Optional
+from PIL import Image
+import os
+import matplotlib.pyplot as plt
 
 def stable_softmax(x: np.ndarray, axis: Optional[int] = None) -> np.ndarray:
     """
@@ -372,7 +246,8 @@ class ContinuousHopfield:
                     current_state = next_state # Ensure the last state is stored
                     if store_history:
                         history.append(current_state.copy())
-                    break # Stop iterating
+                    # Stop iterating
+                    break
 
             current_state = next_state
             if store_history:
@@ -383,3 +258,82 @@ class ContinuousHopfield:
     def __repr__(self) -> str:
         status = "Initialized" if self.patterns is None else f"Stored N={self.N}, d={self.d}"
         return f"ContinuousHopfield({status}, beta={self.beta:.2f})"
+    
+
+def load_images(d: str, shape=(28, 28)) -> np.ndarray:
+    # load and convert to grayscale
+    images = []
+    for filename in os.listdir(d):
+        img = Image.open(os.path.join(d, filename)).convert("L")
+        img = img.resize(shape)  # Resize to shape
+        img_array = np.array(img).flatten()  # Flatten the image to a vector
+        images.append(img_array)
+
+    images = np.array(images, dtype=np.float32)  # Convert to numpy array
+    images = (images - 127.5) / 127.5  # Normalize to [-1, 1]
+    return images
+     
+def save_processed_images(images, path):
+    for i, img in enumerate(images):
+        img = (img + 1) * 127.5  # Rescale to [0, 255]
+        img = img.astype(np.uint8)  # Convert to uint8
+        img = Image.fromarray(img.reshape(140, 90))  # Reshape to original dimensions
+        img.save(os.path.join(path, f"processed_{i}.png"))
+    
+
+def plot_images(images, n_cols=6, shape=(28, 28)):
+    n_rows = int(np.ceil(len(images) / n_cols))
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(n_cols * 2, n_rows * 2))
+    for i, ax in enumerate(axes.flat):
+        if i < len(images):
+            ax.imshow(images[i].reshape(shape), cmap='gray')
+            ax.axis('off')
+        else:
+            ax.axis('off')
+    plt.tight_layout()
+    plt.show()
+
+def plot_image(image, shape=(28, 28)):
+    plt.imshow(image.reshape(shape), cmap='gray')
+    plt.axis('off')
+    plt.show()
+
+def noise_image(image, noise_factor=0.5):
+    noise = np.random.normal(loc=0.0, scale=noise_factor, size=image.shape)
+    noisy_image = image + noise
+    noisy_image = np.clip(noisy_image, -1.0, 1.0)  # Ensure values are in [-1, 1]
+    return noisy_image
+
+def set_element_random(image, fraction=0.5):
+    # set from portion of the image to random from the first element
+    num_elements = image.size
+    num_to_set = int(num_elements * fraction)
+    random_values = np.random.choice(image, num_to_set, replace=False)
+    image[:num_to_set] = random_values
+    return image
+
+def grayen_half_image(image):
+    half = image.shape[0] // 2
+    image[half:] = -0.75
+    return image
+
+def main():
+    path = "imgs\discrete"
+    shape = (90, 140)
+
+    images = load_images(path, shape)  # Load images and flatten
+
+    hfnet = ContinuousHopfield(beta=0.5)  # Initialize the network with beta=0.5
+    hfnet.store_patterns(images)  # Store patterns in the network
+
+    img_to_retrieve = images[np.random.randint(0, len(images))]  # Randomly select an image
+    plot_image(img_to_retrieve, shape=(shape[1], shape[0]))
+
+    img_to_retrieve = grayen_half_image(img_to_retrieve)  # Add noise to the first image
+    plot_image(img_to_retrieve, shape=(shape[1], shape[0]))
+
+    retrieved = hfnet.retrieve(img_to_retrieve, max_iter=1)[0]
+    
+    plot_image(retrieved, shape=(shape[1], shape[0]))
+
+main()

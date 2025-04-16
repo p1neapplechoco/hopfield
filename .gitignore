@@ -176,3 +176,6 @@ cython_debug/
 
 # datas
 *.png
+*.jpg
+*.zip
+*.rar

@@ -1,2 +1,2 @@
 from .ClassicHopfield import ClassicHopfield
-from .ModernHopfield import ModernHopfield
+from .ModernHopfield import DiscreteHopfield, ContinuousHopfield

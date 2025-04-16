@@ -48,6 +48,10 @@ class ClassicHopfield:
             
         return np.atleast_1d(signs)
     
+    def softmax(x: np.ndarray) -> np.ndarray:
+        e_x = np.exp(x - np.max(x, axis=-1, keepdims=True))
+        return e_x / np.sum(e_x, axis=-1, keepdims=True)
+    
     def energy(self, state: np.array) -> float:
         """
         """
