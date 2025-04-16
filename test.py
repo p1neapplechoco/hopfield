@@ -314,19 +314,19 @@ def set_element_random(image, fraction=0.5):
 
 def grayen_half_image(image):
     half = image.shape[0] // 2
-    image[half:] = -0.75
-    return image
+    image[half:] = 0
+    return image.copy()
 
 def main():
-    path = "imgs\discrete"
-    shape = (90, 140)
+    path = "D:\.projects\hopfield\imgs\continuous"
+    shape = (128, 128)
 
     images = load_images(path, shape)  # Load images and flatten
 
-    hfnet = ContinuousHopfield(beta=0.5)  # Initialize the network with beta=0.5
+    hfnet = ContinuousHopfield(beta=0.000001)  # Initialize the network with beta=0.5
     hfnet.store_patterns(images)  # Store patterns in the network
 
-    img_to_retrieve = images[np.random.randint(0, len(images))]  # Randomly select an image
+    img_to_retrieve = images[np.random.randint(0, len(images))].copy()  # Randomly select an image
     plot_image(img_to_retrieve, shape=(shape[1], shape[0]))
 
     img_to_retrieve = grayen_half_image(img_to_retrieve)  # Add noise to the first image
