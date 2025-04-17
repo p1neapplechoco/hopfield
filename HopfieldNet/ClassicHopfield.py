@@ -3,13 +3,11 @@ from typing import Tuple, List
 
 class ClassicHopfield:
     def __init__(self) -> None:
-        self.W = None  # Weight matrix
-        self.d = 0 # Dimension of the patterns
-        self.patterns = None  # Stored patterns
+        self.W = None
+        self.d = 0
+        self.patterns = None
     
     def store_patterns(self, patterns: np.ndarray, zero_diag=False) -> None:
-        """
-        """
         if patterns.ndim != 2:
             raise ValueError
         
@@ -33,10 +31,9 @@ class ClassicHopfield:
 
     @staticmethod
     def sign(x: np.array, zero_to_positive=True) -> np.array:
-        """
-        """
         signs = np.atleast_1d(x)
         signs = np.sign(signs)
+        
         if zero_to_positive:
             for i in range(len(signs)):
                 if signs[i] == 0:
@@ -53,8 +50,6 @@ class ClassicHopfield:
         return e_x / np.sum(e_x, axis=-1, keepdims=True)
     
     def energy(self, state: np.array) -> float:
-        """
-        """
         if state.shape[0] != self.d:
             raise ValueError
         
@@ -68,19 +63,17 @@ class ClassicHopfield:
     def retrieve(self, initial_state: np.ndarray,
                  mode: str = 'async',
                  max_iter: int = 1000,
-                 convergence_check_freq: int = 1,
-                 ) -> Tuple[np.ndarray, List[np.ndarray], List[float]]:
-
+                 ) -> np.ndarray:
 
         if initial_state.ndim != 1 or initial_state.shape[0] != self.d:
-            raise ValueError(f"Trạng thái khởi đầu phải 1D và có kích thước ({self.d},).")
+            raise ValueError(f"Initial state must be a 1D array of shape ({self.d},), but got {initial_state.shape}")
         
         if mode not in ['sync', 'async']:
-             raise ValueError("mode phải là 'sync' hoặc 'async'")
+            raise ValueError("Mode must be 'sync' or 'async'.")
         
         if not np.all(np.isin(initial_state, [-1, 1])):
-             print("Cảnh báo: Trạng thái đầu vào có giá trị khác {-1, 1}. Sẽ được chuẩn hóa.")
-
+            raise ValueError("Initial state must contain only -1 and 1 values.")
+        
         state = self.sign(initial_state.astype(np.float64)).astype(np.int8)
 
         state_history = [state.copy()]
@@ -129,4 +122,4 @@ class ClassicHopfield:
             if converged:
                 break
 
-        return state, state_history, energy_history
+        return state
