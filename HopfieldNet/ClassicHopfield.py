@@ -23,7 +23,7 @@ class ClassicHopfield:
             if pattern.shape[0] != self.d:
                 raise ValueError
             else:
-                self.W += np.outer(pattern, pattern.T)
+                self.W += np.outer(pattern, pattern)
         
         if zero_diag:
             np.fill_diagonal(self.W, 0)

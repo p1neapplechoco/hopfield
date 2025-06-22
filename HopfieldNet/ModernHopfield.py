@@ -60,7 +60,7 @@ class DiscreteHopfield:
 
         term_common = dot_products_current - x_col_l * state_float[l]
         dot_products_l_plus = term_common + x_col_l
-        dot_products_l_minus = term_common - x_col_l
+        dot_products_l_minus = term_common - x_col_l    
 
         scaled_dots_plus = self.beta * dot_products_l_plus
         scaled_dots_minus = self.beta * dot_products_l_minus
@@ -82,7 +82,6 @@ class DiscreteHopfield:
 
 
     def retrieve(self, initial_state: np.ndarray,
-                 max_iter: int = 1,
                  update_order: str = 'random',
                  max_unchanged: int = 10) -> np.ndarray:
         
@@ -91,45 +90,31 @@ class DiscreteHopfield:
         if initial_state.ndim != 1 or initial_state.shape[0] != self.d:
              raise ValueError(f"Initial state must be 1D with dimension {self.d}.")
         if not np.all(np.isin(initial_state, [-1, 1])):
-             raise ValueError("Warning: Initial state contains values other than {-1, 1}.")
+             raise ValueError("Warning: Initial state contains values other  than {-1, 1}.")
 
-        state = initial_state.copy()
-
-        state_history = [state.copy()]
-        energy_history = [self.energy(state)]
-
-        consecutive_unchanged = 0
-        converged = False
-
-        for it in range(max_iter):
-            state_changed_this_sweep = False
-            order = np.random.permutation(self.d) if update_order == 'random' else np.arange(self.d)
-
-            for l in order:
-                new_val_l = self.update_component(state, l)
-
-                if new_val_l != state[l]:
-                    state[l] = new_val_l
-                    state_changed_this_sweep = True
-
-            state_history.append(state.copy())
-            current_energy = self.energy(state)
-            energy_history.append(current_energy)
-
-            if not state_changed_this_sweep:
-                consecutive_unchanged += 1
+        curr_state = initial_state
+        while True:
+            unchanged_count = 0
+            
+            if update_order == 'random':
+                indices = np.random.permutation(self.d)
+            elif update_order == 'sequential':
+                indices = np.arange(self.d)
             else:
-                consecutive_unchanged = 0
+                raise ValueError("update_order must be either 'random' or 'sequential'.")
 
-            if consecutive_unchanged >= max_unchanged:
-                converged = True
-            
-            if converged:
+            for i in indices:
+                new_value = self.update_component(curr_state, i)
+                if new_value != curr_state[i]:
+                    curr_state[i] = new_value
+                    unchanged_count = 0
+                else:
+                    unchanged_count += 1
+
+            if unchanged_count >= max_unchanged:
                 break
-            
-            print(f'Iteration {it + 1}: State={state}')
-
-        return state
+        
+        return initial_state
 
 class ContinuousHopfield:
     def __init__(self, beta: float = 1.0) -> None:
@@ -182,28 +167,12 @@ class ContinuousHopfield:
 
     def retrieve(self,
                  initial_state: np.ndarray,
-                 max_iter: int = 1,
-                 tolerance: Optional[float] = 1e-5,
                 ) -> np.ndarray:
         
         if self.patterns is None:
             raise ValueError("Patterns have not been stored yet. Call store_patterns() first.")
         if initial_state.shape != (self.d,):
              raise ValueError(f"Initial state must be flattened to shape ({self.d},), but got {initial_state.shape}. Use initial_state.flatten() if needed.")
-        if max_iter < 0:
-            raise ValueError("max_iter must be non-negative.")
 
         current_state = initial_state.copy()
-
-        for _ in range(max_iter):
-            next_state = self.update_state(current_state)
-
-            if tolerance is not None:
-                change_norm = np.linalg.norm(next_state - current_state)
-                if change_norm < tolerance:
-                    current_state = next_state
-                    break
-
-            current_state = next_state
-
-        return current_state
+        return self.update_state(current_state)
